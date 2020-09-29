@@ -1,0 +1,75 @@
+image: docker:latest
+services:
+  - docker:dind
+
+stages:
+  - pull
+  - build
+  - deploy
+
+# FOR DEV RUNNER
+
+pull-dev:
+  stage: pull
+  only:
+    - development
+  script:
+    - git checkout development
+    - git pull http://"$GITLAB_USER":"$GITLAB_PASS"@git.spiralbean.com:8888/matha/ma_web.git development
+  tags:
+    - dev
+
+build-dev:
+  stage: build
+  only:
+    - development
+  script:
+    - sudo docker build --build-arg NODE_ENV=dev -t ma_web:"$CI_COMMIT_SHORT_SHA" .
+    - sudo docker tag ma_web:"$CI_COMMIT_SHORT_SHA" ma_web:latest
+  tags:
+    - dev
+
+run-dev:
+  stage: deploy
+  only:
+    - development
+  script:
+    - sudo docker service update --image ma_web:latest --force ma_web
+  tags:
+    - dev
+
+
+# FOR PROD RUNNER
+
+pull-prod:
+  stage: pull
+  only:
+    - master
+  script:
+    - git pull http://"$GITLAB_USER":"$GITLAB_PASS"@git.spiralbean.com:8888/matha/ma_web.git
+  tags:
+    - dev
+
+build-prod:
+  stage: build
+  only:
+    - master
+  script:
+    - sudo docker build -t mathagroup/ma_web:"$CI_COMMIT_SHORT_SHA" .
+    - sudo docker tag mathagroup/ma_web:"$CI_COMMIT_SHORT_SHA" mathagroup/ma_web:latest
+    - sudo docker login -u $DOCKER_USER -p $DOCKER_PASS
+    - sudo docker push mathagroup/ma_web:"$CI_COMMIT_SHORT_SHA"
+    - sudo docker push mathagroup/ma_web:latest
+  tags:
+    - dev
+
+run-prod:
+  stage: deploy
+  only:
+    - master
+  script:
+    - sudo docker pull mathagroup/ma_web:"$CI_COMMIT_SHORT_SHA"
+    - sudo docker pull mathagroup/ma_web:latest
+    - sudo docker service update --image mathagroup/ma_web:latest --force ma_web
+  tags:
+    - production
